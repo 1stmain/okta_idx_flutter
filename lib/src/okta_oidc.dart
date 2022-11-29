@@ -87,10 +87,8 @@ class OktaOidcFlutter {
     // ignore: prefer_typing_uninitialized_variables
     var tokens;
 
-    tokens = await _channel.invokeMethod("REGISTER_WITH_CREDENTIAL", {
-      "email": email,
-      "password": password,
-    });
+    tokens = await _channel.invokeMethod(
+        "REGISTER_WITH_CREDENTIAL", {"email": email, "password": password});
 
     return OktaResponse.parse(tokens);
   }
