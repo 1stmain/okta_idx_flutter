@@ -63,8 +63,9 @@ public class SwiftOktaOidcFlutterPlugin: NSObject, FlutterPlugin , ASWebAuthenti
             let username: String = creds["username"]!! as String;
             let password: String = creds["password"]!! as String;
             let newPassword : String? = creds["newPassword"] ?? nil;
-            
-            availableMethods.signInWithCreds(Username: username, Password: password, NewPassword: newPassword, callback: {token,error  in
+            let tfaCode : String? = creds["tfaCode"] ?? nil;
+
+            availableMethods.signInWithCreds(Username: username, Password: password, NewPassword: newPassword, tfaCode: tfaCode, callback: {token,error  in
                 if(error != nil) {
                     let flutterError: FlutterError = FlutterError(code: "Sign_In_Error", message: error?.localizedDescription, details: error.debugDescription);
                     result(flutterError);
