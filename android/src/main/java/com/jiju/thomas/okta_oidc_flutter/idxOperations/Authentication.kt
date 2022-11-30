@@ -32,7 +32,7 @@ object Authentication {
 
         val scope = CoroutineScope(Dispatchers.IO + SupervisorJob())
         scope.launch {
-            val result = createCoroutineClient(methodChannelResult)
+            val result = createCoroutineClient(methodChannelResult, null)
             if (result != null) {
                 AuthenticationImpl.handleRegisterWithCredentials(
                     result,
@@ -47,7 +47,7 @@ object Authentication {
     fun registerUserWithGoogle(methodChannelResult: MethodChannel.Result, context: Context) {
         val scope = CoroutineScope(Dispatchers.IO + SupervisorJob())
         scope.launch {
-            val result = createCoroutineClient(methodChannelResult)
+            val result = createCoroutineClient(methodChannelResult, null)
             if (result != null) {
                 AuthenticationImpl.handleRegisterWithGoogle(
                     result,
@@ -61,11 +61,12 @@ object Authentication {
         email: String,
         password: String,
         newPassword: String?,
+        tfaCode: String?,
         methodChannelResult: MethodChannel.Result,
     ) {
         val scope = CoroutineScope(Dispatchers.IO + SupervisorJob())
         scope.launch {
-            val result = createCoroutineClient(methodChannelResult)
+            val result = createCoroutineClient(methodChannelResult, tfaCode != null)
             if (result != null) {
 
                 AuthenticationImpl.handleSignInWithCredentials(
@@ -73,6 +74,7 @@ object Authentication {
                     email,
                     password,
                     newPassword,
+                    tfaCode,
                     methodChannelResult, flow
                 )
             }
@@ -83,7 +85,7 @@ object Authentication {
     fun logout(methodChannelResult: MethodChannel.Result) {
         val scope = CoroutineScope(Dispatchers.IO + SupervisorJob())
         scope.launch {
-            val result = createCoroutineClient(methodChannelResult)
+            val result = createCoroutineClient(methodChannelResult, null)
             if (result != null) {
                 AuthenticationImpl.handleLogout(
                     result, methodChannelResult, flow
@@ -142,9 +144,26 @@ object Authentication {
 
     private suspend fun createCoroutineClient(
         methodChannelResult: MethodChannel.Result,
+        resume: Boolean?,
     ): IdxResponse? {
         var response: IdxResponse? = null
-
+        println("previousflow $flow")
+        if (resume == true && flow != null) {
+            when (val resumeResult = flow?.resume()) {
+                is OidcClientResult.Error -> {
+                    methodChannelResult.error(
+                        "RESUME FAILED",
+                        resumeResult.exception.message,
+                        resumeResult.exception.cause?.message
+                    )
+                    return null
+                }
+                is OidcClientResult.Success -> {
+                    response = resumeResult.result
+                }
+            }
+            return response;
+        }
         when (
             val clientResult = CredentialBootstrap.oidcClient.createIdxFlow(
                 redirectUrl = OktaClient.getInstance().config.redirectUri.toString(),

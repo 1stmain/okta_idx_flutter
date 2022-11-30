@@ -89,6 +89,7 @@ object AuthenticationImpl {
         email: String,
         password: String,
         newPassword: String?,
+        tfaCode: String?,
         methodChannelResult: MethodChannel.Result,
         flow: IdxFlow?,
     ) {
@@ -103,6 +104,56 @@ object AuthenticationImpl {
             return
         }
 
+        if (tfaCode != null){
+            // handling 2 Factor authentication resume
+            when (val resumeResponse = flow.resume()){
+                is OidcClientResult.Error -> {
+                    println("resumeResponse error ${resumeResponse.exception}");
+                }
+                is OidcClientResult.Success -> {
+                    val enrollAuthenticatorRemediation =
+                        resumeResponse.result.remediations[IdxRemediation.Type.ENROLL_AUTHENTICATOR]
+                    val newPasswordField =
+                        enrollAuthenticatorRemediation?.get("credentials.passcode")
+                    if (newPasswordField != null) {
+                        newPasswordField.value = tfaCode
+                    }
+                    if (enrollAuthenticatorRemediation != null) {
+                        when (val reEnrollResponse =
+                            flow.proceed(enrollAuthenticatorRemediation)) {
+                            is OidcClientResult.Error -> {
+                                println("reEnrollRemediation failed")
+                                methodChannelResult.error(
+                                    "reEnrollRemediation ERROR",
+                                    reEnrollResponse.exception.message,
+                                    reEnrollResponse.exception.cause?.message,
+                                )
+                                return
+                            }
+                            is OidcClientResult.Success -> {
+                                println("reEnrollRemediation SUCCESS")
+                                if (reEnrollResponse.result.remediations[IdxRemediation.Type.ISSUE] != null) {
+                                    val reEnrollNewPwdResponse =
+                                        flow.exchangeInteractionCodeForTokens(
+                                            reEnrollResponse.result.remediations[IdxRemediation.Type.ISSUE]!!
+                                        )
+                                    fetchAndSendTokens(reEnrollNewPwdResponse,methodChannelResult)
+                                } else {
+                                    methodChannelResult.error(
+                                        "E0000004",
+                                        "User not found",
+                                        "E0000004"
+                                    )
+                                }
+                            }
+                        }
+                    }
+                    println("resumeResponse success ${enrollAuthenticatorRemediation?.get("credentials")}");
+                    println("resumeResponse success ${enrollAuthenticatorRemediation?.get("credentials.passcode")}");
+                }
+            }
+            return
+        }
 
         println("Starting remediation check")
         for (remediation in response.remediations) {
@@ -150,7 +201,35 @@ object AuthenticationImpl {
                                                 challengeAuthenticatorResponse.result.remediations[IdxRemediation.Type.ISSUE]!!
                                             )
                                         fetchAndSendTokens(tokenResponse,methodChannelResult)
-                                    } else if (challengeAuthenticatorResponse.result.remediations[IdxRemediation.Type.REENROLL_AUTHENTICATOR] != null) {
+                                    } else if (challengeAuthenticatorResponse.result.remediations[IdxRemediation.Type.SELECT_AUTHENTICATOR_ENROLL] != null) {
+
+                                        val authenticatorEnrollRemediation =
+                                            challengeAuthenticatorResponse.result.remediations[IdxRemediation.Type.SELECT_AUTHENTICATOR_ENROLL]
+
+                                        val authenticationOption =
+                                            authenticatorEnrollRemediation?.form?.get("authenticator")?.options?.get(
+                                                0
+                                            )
+                                        if (authenticatorEnrollRemediation != null) {
+                                            authenticatorEnrollRemediation.form["authenticator"]?.selectedOption =
+                                                authenticationOption
+                                            when (val selectAuthenticatorEnrollResponse =
+                                                flow.proceed(authenticatorEnrollRemediation)) {
+                                                is OidcClientResult.Error -> {
+                                                    println("SELECT_AUTHENTICATOR_ENROLL_EXCEPTION ${selectAuthenticatorEnrollResponse.exception}");
+                                                }
+                                                is OidcClientResult.Success -> {
+                                                    if (tfaCode == null){
+                                                        val newPwdMap = mapOf("codeSentFor2FA" to true)
+                                                        methodChannelResult.success(newPwdMap)
+                                                        return
+                                                    }
+                                                }
+                                                else -> {}
+                                            }
+                                        }
+                                    }
+                                    else if (challengeAuthenticatorResponse.result.remediations[IdxRemediation.Type.REENROLL_AUTHENTICATOR] != null) {
                                         if (newPassword == null) {
                                             val newPwdMap = mapOf("reEnroll" to true)
                                             methodChannelResult.success(newPwdMap)
