@@ -1,4 +1,4 @@
-import 'dart:developer';
+// ignore_for_file: avoid_print
 
 import 'package:flutter/material.dart';
 import 'package:okta_oidc_flutter/okta_oidc_flutter.dart';
@@ -70,7 +70,48 @@ class _MyAppState extends State<MyApp> {
                                       newPassword: '########################',
                                     );
 
-                                    log(oktaResposne.accessToken.toString());
+                                    print(oktaResposne.accessToken.toString());
+                                  },
+                                  child: const Text('RESET'),
+                                ),
+                              ),
+                            )
+                          ],
+                        );
+                      });
+                } else if (oktaResposne.codeSentFor2FA) {
+                  showDialog(
+                      context: context,
+                      builder: (context) {
+                        TextEditingController textEditingController =
+                            TextEditingController();
+                        return AlertDialog(
+                          alignment: Alignment.center,
+                          title: TextFormField(
+                            controller: textEditingController,
+                            onChanged: (String? e) {
+                              if (e != null) {
+                                textEditingController.text = e;
+                              }
+                            },
+                          ),
+                          actions: [
+                            Center(
+                              child: SizedBox(
+                                height: 30,
+                                width: 100,
+                                child: TextButton(
+                                  onPressed: () async {
+                                    OktaResponse oktaResposne =
+                                        await OktaOidcFlutter
+                                            .instance
+                                            .signInWithCredentials(
+                                                email:
+                                                    '########################',
+                                                password:
+                                                    '########################',
+                                                tfaCode: '######');
+                                    print(oktaResposne.accessToken.toString());
                                   },
                                   child: const Text('RESET'),
                                 ),
@@ -80,7 +121,7 @@ class _MyAppState extends State<MyApp> {
                         );
                       });
                 } else {
-                  log(oktaResposne.accessToken!.toString());
+                  print(oktaResposne.accessToken!);
                 }
               },
               child: const Text('Sign In'),
@@ -88,38 +129,16 @@ class _MyAppState extends State<MyApp> {
             TextButton(
               onPressed: () async {
                 bool result = await OktaOidcFlutter.instance.signOut();
-                log(result.toString());
+                print(result);
               },
               child: const Text('Sign Out'),
-            ),
-            TextButton(
-              onPressed: () async {
-                await OktaOidcFlutter.instance.initOkta(
-                  InitOkta(
-                      clientId: '########################',
-                      issuer: '########################',
-                      endSessionRedirectUri: '########################',
-                      redirectUrl: '########################',
-                      scopes: ['openid', 'profile', 'email', 'offline_access'],
-                      idp: '########################'),
-                );
-                await OktaOidcFlutter.instance
-                    .sso(idp: '########################');
-              },
-              child: const Text('SSO'),
-            ),
-            TextButton(
-              onPressed: () async {
-                await OktaOidcFlutter.instance.registerWithGoogle();
-              },
-              child: const Text('Register with google'),
             ),
             TextButton(
               onPressed: () async {
                 OktaResponse token = await OktaOidcFlutter.instance
                     .registerWithCreds(
                         '########################', '########################');
-                log(token.accessToken.toString());
+                print(token.accessToken.toString());
               },
               child: const Text('Register'),
             ),
