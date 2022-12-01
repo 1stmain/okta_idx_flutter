@@ -72,9 +72,10 @@ public class OktaOidcFlutterPlugin implements FlutterPlugin, MethodCallHandler, 
                 final String email = call.argument("username");
                 final String password = call.argument("password");
                 final String newPassword = call.argument("newPassword");
+                final String tfaCode = call.argument("tfaCode");
                 assert password != null;
                 assert email != null;
-                Authentication.INSTANCE.signInWithCredentials(email, password, newPassword,result);
+                Authentication.INSTANCE.signInWithCredentials(email, password, newPassword,tfaCode,result);
                 break;
             case AvailableMethods.SIGN_OUT:
                 Authentication.INSTANCE.logout(result);
