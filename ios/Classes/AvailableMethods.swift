@@ -45,8 +45,8 @@ class AvailableMethods{
     
     // MARK: Logout from OKTA
     func logOut( callback: @escaping ((Error?) -> (Void))){
-        guard let idxFlow = self.idxFlow,
-              let   credsStorage = oktaProcessors.credsStorage else {
+        guard let idxFlow = self.idxFlow
+        else {
             callback(nil)
             return
         }
@@ -64,13 +64,7 @@ class AvailableMethods{
                         remediation.proceed(completion: { finalResult in
                             switch finalResult {
                             case .success(_):
-                                let revoke =  Credential.revoke(credsStorage)
-                                revoke(Token.RevokeType.accessToken, {_ in
-                                    revoke(Token.RevokeType.refreshToken, { _ in
-                                        callback(nil)
-                                    })
-                                    
-                                })
+                                callback(nil)
                             case .failure(let error):
                                 callback(error)
                             }
