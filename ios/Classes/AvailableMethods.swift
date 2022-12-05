@@ -113,83 +113,97 @@ class AvailableMethods{
             idx.start { result in
                 let idxResult : Response? = self.oktaProcessors.processRemediation(response: result, callback: callback)
                 if(idxResult != nil){
-                    guard let remediation = idxResult!.remediations[.identify],
-                          let usernameField = remediation["identifier"],
-                          let rememberMeField = remediation["rememberMe"]
-                    else {
-                        return
+                    if(idxResult!.remediations.count == 3){
+                        guard let remediation = idxResult!.remediations[.challengeAuthenticator],
+                                let passwordField = remediation["credentials.passcode"]
+                        else {
+                            return
+                        }
+                        passwordField.value = Password
+                        self.proceedLogin(Username: Username, Password: Password, NewPassword: NewPassword, callback: callback, remediation: remediation)
+                    }else {
+                        guard let remediation = idxResult!.remediations[.identify],
+                              let usernameField = remediation["identifier"],
+                              let rememberMeField = remediation["rememberMe"]
+                        else {
+                            return
+                        }
+                        usernameField.value = Username
+                        rememberMeField.value = false
+                        remediation.proceed { remediationResponse in
+                            let remediationResult : Response? =  self.oktaProcessors.processRemediation(response: remediationResponse, callback: callback)
+                            if(remediationResult != nil){
+                                guard let remediation = remediationResult!.remediations[.challengeAuthenticator],
+                                      let passwordField = remediation["credentials.passcode"]
+                                else {
+                                    return
+                                }
+                                
+                                passwordField.value = Password
+                                self.proceedLogin(Username: Username, Password: Password, NewPassword: NewPassword, callback: callback, remediation: remediation)
+                            }
+                        }
                     }
-                    usernameField.value = Username
-                    rememberMeField.value = false
-                    remediation.proceed { remediationResponse in
-                        let remediationResult : Response? =      self.oktaProcessors.processRemediation(response: remediationResponse, callback: callback)
-                        if(remediationResult != nil){
-                            guard let remediation = remediationResult!.remediations[.challengeAuthenticator],
+                    
+                }
+            }
+        }
+    }
+    
+    
+    func proceedLogin(Username: String!, Password: String!,NewPassword: String?, callback: @escaping (([String:String]?,Error?) -> Void), remediation: Remediation){
+                remediation.proceed { passwordResponse in
+                    let passwordResult : Response? = self.oktaProcessors.processRemediation(response: passwordResponse, callback: callback)
+                    if(passwordResult != nil){
+                        let isPasswordReEnroll : Bool = passwordResult!.remediations[.reenrollAuthenticator] != nil
+                        if(isPasswordReEnroll && NewPassword == nil){
+                            callback(["reEnroll": "true"], nil)
+                            return
+                        }
+                        if(isPasswordReEnroll && NewPassword != nil){
+                            guard let remediation = passwordResult!.remediations[.reenrollAuthenticator],
                                   let passwordField = remediation["credentials.passcode"]
                             else {
                                 return
                             }
-                            
-                            passwordField.value = Password
-                            
-                            remediation.proceed { passwordResponse in
-                                let passwordResult : Response? = self.oktaProcessors.processRemediation(response: passwordResponse, callback: callback)
-                                if(passwordResult != nil){
-                                    let isPasswordReEnroll : Bool = passwordResult!.remediations[.reenrollAuthenticator] != nil
-                                    if(isPasswordReEnroll && NewPassword == nil){
-                                        callback(["reEnroll": "true"], nil)
+                            passwordField.value = NewPassword
+                            remediation.proceed { passwordReEnrollResponse in
+                                let passwordReEnrollSuccess : Response? = self.oktaProcessors.processRemediation(response: passwordReEnrollResponse, callback: callback)
+                                if(passwordReEnrollSuccess != nil){
+                                    self.oktaProcessors.exchangeTokenFromResponse(response: passwordReEnrollSuccess!, callback: callback)
+                                }
+                            }
+                        }else{
+                            // checking if the 2FA is needed
+                            let isAuthEnrollRequired : Bool = passwordResult!.remediations[.selectAuthenticatorEnroll] != nil
+                            //
+                            if(isAuthEnrollRequired){
+                                guard let remediation = passwordResult!.remediations[.selectAuthenticatorEnroll],
+                                      let authenticatorField = remediation["authenticator"],
+                                      let authenticationOption = authenticatorField.options?.first(where: { option in
+                                          option.label == "Email"
+                                      })
+                                else {
+                                    return
+                                }
+                                authenticatorField.selectedOption = authenticationOption
+                                // Email with 2FA code is sent
+                                remediation.proceed { enrollAuthRespone in
+                                    
+                                    let enrollAuthResult : Response? = self.oktaProcessors.processRemediation(response: enrollAuthRespone, callback: callback)
+                                    if(enrollAuthResult != nil){
+                                        // UI is initmated on requirement of 2FA code
+                                        callback(["codeSentFor2FA": "true"], nil)
                                         return
                                     }
-                                    if(isPasswordReEnroll && NewPassword != nil){
-                                        guard let remediation = passwordResult!.remediations[.reenrollAuthenticator],
-                                              let passwordField = remediation["credentials.passcode"]
-                                        else {
-                                            return
-                                        }
-                                        passwordField.value = NewPassword
-                                        remediation.proceed { passwordReEnrollResponse in
-                                            let passwordReEnrollSuccess : Response? = self.oktaProcessors.processRemediation(response: passwordReEnrollResponse, callback: callback)
-                                            if(passwordReEnrollSuccess != nil){
-                                                self.oktaProcessors.exchangeTokenFromResponse(response: passwordReEnrollSuccess!, callback: callback)
-                                            }
-                                        }
-                                    }else{
-                                        // checking if the 2FA is needed
-                                        let isAuthEnrollRequired : Bool = passwordResult!.remediations[.selectAuthenticatorEnroll] != nil
-                                        //
-                                        if(isAuthEnrollRequired){
-                                            guard let remediation = passwordResult!.remediations[.selectAuthenticatorEnroll],
-                                                  let authenticatorField = remediation["authenticator"],
-                                                  let authenticationOption = authenticatorField.options?.first(where: { option in
-                                                      option.label == "Email"
-                                                  })
-                                            else {
-                                                return
-                                            }
-                                            authenticatorField.selectedOption = authenticationOption
-                                            // Email with 2FA code is sent
-                                            remediation.proceed { enrollAuthRespone in
-                                                
-                                                let enrollAuthResult : Response? = self.oktaProcessors.processRemediation(response: enrollAuthRespone, callback: callback)
-                                                if(enrollAuthResult != nil){
-                                                    // UI is initmated on requirement of 2FA code
-                                                    callback(["codeSentFor2FA": "true"], nil)
-                                                    return
-                                                }
-                                            }
-                                        }
-                                        // If the 2FA is not required, and it's successful login, we exchange response for token
-                                        else{
-                                            self.oktaProcessors.exchangeTokenFromResponse(response: passwordResult!, callback: callback)
-                                        }
-                                    }
                                 }
-                                
+                            }
+                            // If the 2FA is not required, and it's successful login, we exchange response for token
+                            else{
+                                self.oktaProcessors.exchangeTokenFromResponse(response: passwordResult!, callback: callback)
                             }
                         }
                     }
-                }
-            }
         }
     }
     
@@ -372,5 +386,6 @@ class AvailableMethods{
         
     }
 }
+
 
 
