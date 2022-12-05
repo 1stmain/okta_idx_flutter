@@ -161,6 +161,7 @@ object Authentication {
                 is OidcClientResult.Success -> {
                     response = resumeResult.result
                 }
+                else -> return null
             }
             return response;
         }
