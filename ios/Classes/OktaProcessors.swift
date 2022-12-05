@@ -35,22 +35,12 @@ class OktaProcessors{
             switch tokenResult{
             case .success(let tokenResponse):
                 let tokens = tokenResponse
-                self.saveCreds(token: tokens, callback: callback)
                 callback([
                     "accessToken": tokens.accessToken
                 ],nil)
             case .failure(let error):
                 callback(nil, error)
             }
-        }
-    }
-    
-    //MARK: Save Creds
-    func saveCreds(token: Token, callback: @escaping (([String:String]?,Error?) -> Void)){
-        do{
-            try self.credsStorage = Credential.store(token)
-        }catch{
-            callback(nil, error)
         }
     }
 }
