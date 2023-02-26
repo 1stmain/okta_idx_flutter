@@ -29,6 +29,10 @@ class OktaProcessors{
     func exchangeTokenFromResponse(response: Response,  callback: @escaping (([String:String]?,Error?) -> Void)){
         guard response.isLoginSuccessful
         else {
+             let response : Bool = response.remediations[.challengeAuthenticator] != nil
+            if response {
+                callback(nil, NSError(domain: "Okta Password iOS", code: 0, userInfo: [NSLocalizedDescriptionKey: "Wrong Password"]))
+            }
             return
         }
         response.exchangeCode { tokenResult in
